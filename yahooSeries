@@ -2,6 +2,7 @@
   #***********************
   # tq_get 
   # Find any asset symbol from Yahoo Finance, like TLT(USTry20+ ETF)
+  #***********************
   
   mydata <- tq_get("TLT")
   
