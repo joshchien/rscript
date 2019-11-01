@@ -1,0 +1,13 @@
+  library(tidyquant) # Member of RStudio Family. It's for quantitive finance field
+  #***********************
+  # tq_get 
+  # Find any asset symbol from Yahoo Finance, like TLT(USTry20+ ETF)
+  
+  mydata <- tq_get("TLT")
+  
+  # mydata is "tbl_df", "tbl","data.frame"
+  # This dataset will transform into timeSeries for Rmetrics library
+  
+  DATE <- mydata$date
+  Data <-  mydata[,-1]
+  TS <- timeSeries(Data,DATE) 
