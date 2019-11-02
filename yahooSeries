@@ -3,9 +3,16 @@
   # tq_get 
   # Find any asset symbol from Yahoo Finance, like TLT(USTry20+ ETF)
   #***********************
+  # Example for download financial data from Yahoo Finance
   
   mydata <- tq_get("TLT")
   
+  mydata <- tq_get(c("DBC", "TLT"),
+         get  = "stock.prices",
+         from = "2016-01-01",
+         to   = "2017-01-01")
+         
+  #***********************
   # mydata is "tbl_df", "tbl","data.frame"
   # This dataset will transform into timeSeries for Rmetrics library
   
