@@ -19,3 +19,22 @@
   DATE <- mydata$date
   Data <-  mydata[,-1]
   TS <- timeSeries(Data,DATE) 
+  
+  #***********************
+  TS.yahoo.Dataset <- function(ts.name,ts.from,ts.to,ts.quote){
+  
+  # Download Asset Data
+  TS.Data <- tq_get(ts.name,
+                    get  = "stock.prices",
+                    from = ts.from,
+                    to   = ts.to)
+  # Transform timeSeries Object from tbl_df, tibble
+  DATE <- TS.Data$date
+  Data <-  TS.Data[,-1]
+  TS <- timeSeries(Data,DATE)
+  Asset <- TS[,ts.quote] # Select "Adjusted" quote / 
+  colnames(Asset) <- ts.name
+  return(Asset)
+}
+
+
