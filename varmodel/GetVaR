@@ -1,3 +1,6 @@
+
+# from Library PerformanceAnalytics
+
 GetVaR <- function(ts,p=.99){
   normal.VaR = VaR(ts,p=p,method="gaussian")
   normal.VaR = VaR(ts,p=p,method="historical")
