@@ -1,0 +1,9 @@
+GetVaR <- function(ts,p=.99){
+  normal.VaR = VaR(ts,p=p,method="gaussian")
+  normal.VaR = VaR(ts,p=p,method="historical")
+  modified.VaR = VaR(ts,p=p,method="modified")
+  ans = c(normal.VaR,normal.VaR,modified.VaR)
+  names(ans) = c("Normal","HS","Modified")
+  return(ans)
+}
+
