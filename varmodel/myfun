@@ -1,0 +1,50 @@
+# GetVaR
+# TS.yahoo.Dataset
+# PortVaR
+
+#****************************************************
+
+GetVaR <- function(ts,p=.99){
+  normal.VaR = VaR(ts,p=p,method="gaussian")
+  normal.VaR = VaR(ts,p=p,method="historical")
+  modified.VaR = VaR(ts,p=p,method="modified")
+  ans = c(normal.VaR,normal.VaR,modified.VaR)
+  names(ans) = c("Normal","HS","Modified")
+  return(ans)
+}
+
+TS.yahoo.Dataset <- function(ts.name,ts.from,ts.to,ts.quote){
+  
+  # Download Asset Data
+  TS.Data <- tq_get(ts.name,
+                    get  = "stock.prices",
+                    from = ts.from,
+                    to   = ts.to)
+  # Transform timeSeries Object from tbl_df, tibble
+  DATE <- TS.Data$date
+  Data <-  TS.Data[,-1]
+  TS <- timeSeries(Data,DATE)
+  Asset <- TS[,ts.quote] # Select "Adjusted" quote / 
+  colnames(Asset) <- ts.name
+  return(Asset)
+}
+
+PortVaR <- function(Port.ts,VaR.period,confid){
+VaR.period <- VaR.period - 1
+Asset.RET <- returns(Port.ts)
+num <- nrow(Asset.RET) - VaR.period +1
+VaR.matrix <- array(0,dim=c(num,3))
+for(i in 1:num){
+  s.row <- i
+  e.row <- VaR.period + (i-1)
+  ts <- Asset.RET[s.row:e.row]
+  results <- GetVaR(ts,p=confid)
+  VaR.matrix[i,1:3] <- results[1:3]
+}
+timeStamp <- time(Asset.RET)[VaR.period:nrow(Asset.RET)]
+Asset.VaR <- timeSeries(VaR.matrix,timeStamp)
+#Asset.VaR <- lag(Asset.VaR,k=1) # Shit one lag for align VaR and returns
+Asset.VaR <- cbind(Asset.VaR,Asset.RET[VaR.period:nrow(Asset.RET)])
+colnames(Asset.VaR) <- c("Normal","HS","Modified","1DayRET")
+return(Asset.VaR)
+}
