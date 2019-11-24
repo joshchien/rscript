@@ -1,0 +1,167 @@
+# Write by Josh Chien @20191124, Taipei
+# It's first version and will going to transforming orient-object version to being the part of system.
+# Import Market data from Yahoo Finance
+# Setting Asset Weight, budget, Symbol, and VaR Parameters(Confidence interval, Days)
+# Setting Adjust-Weight level
+# Generate buy-hold, dynamic adjust, regularly adjust strategy's performance
+# Generate 3 kind of VaR on different strategy
+# Plot timeseries
+# Export data
+#********************
+library(tidyquant)
+library(PerformanceAnalytics)
+library(fPortfolio)
+library(ggplot2)
+#********************
+source("myfun.R")
+
+#********************
+
+asset.w <- c(.6,.4)
+asset.name <- c("TLT","VTI")
+Capital.T0 <- 10000
+TS.from <- "2004-01-01"
+TS.to <- "2019-10-31"
+TS.Qutoe <- "adjusted"
+VaR.period <- 250
+confid <- .99
+NextDays <- 20
+up <- .02
+
+#********************
+asset.num <- length(asset.w)
+if(length(asset.w)!=length(asset.name)){print("Asset Dimension is wrong")}
+if(sum(asset.w)!=1){print("Asset Weight is wrong")}
+
+for(i in 1:asset.num){
+  temp <- TS.yahoo.Dataset(asset.name[i],TS.from,TS.to,TS.Qutoe)
+  if(i==1){
+    myPortfolio = temp
+  }else{
+   myPortfolio <- cbind(myPortfolio,temp)
+  }
+}
+#*******************************************************************************
+col.count <- asset.num * 2 + 3 # 3(MVs) + 3*3 : 3 Strategy (buy-hold,dynamic rebalancing,dynamic|Quarterly), 3 VaR result
+row.count <- nrow(myPortfolio)
+balanceMarix <- array(0,dim = c(row.count,col.count))
+DATE <- time(myPortfolio)
+BalancePort <- timeSeries(balanceMarix,DATE)
+
+#******************************************************
+# Buy and hold Strategy
+for(i in 1:asset.num){
+   temp <- myPortfolio[,i]*asset.w[i]
+   if(i==1){
+     Port.ts = temp
+   }else{
+     Port.ts <- cbind(Port.ts,temp)
+   }
+}
+Port.ts <- apply(Port.ts,1,sum)
+names(Port.ts) <- "PortValue"
+BalancePort[1,asset.num*2+2] <- Capital.T0
+BalancePort[2:nrow(BalancePort),asset.num*2+2] <- cumulated(returns(Port.ts))*Capital.T0
+buyholdVaR <- PortVaR(Port.ts,VaR.period,confid)
+VaR.1 <- buyholdVaR[,1:4] * BalancePort[VaR.period:nrow(Port.ts),asset.num*2+2][1]
+
+#******************************************************
+# Dynamic Rebalancing Strategy
+MV <- 0
+for(j in 1:row.count){
+  if(j==1){
+    for(i in 1:asset.num){
+      BalancePort[j,i] <- Capital.T0 * asset.w[i] / myPortfolio[1,i][1]
+      BalancePort[j,i+2] <- asset.w[i]
+      if(i==asset.num){
+        BalancePort[j,i*2 +1] = Capital.T0}
+    }
+  }else{
+    for(i in 1:asset.num){
+      BalancePort[j,i] <- BalancePort[j-1,i]
+      MV <- MV + BalancePort[j,i]*myPortfolio[j,i]
+    }
+    BalancePort[j,asset.num*2+1] <- MV
+    for(i in 1:asset.num){
+      BalancePort[j,i+2] <- BalancePort[j,i]*myPortfolio[j,i] / MV
+      if(BalancePort[j,i+2]>=asset.w[i]+up |BalancePort[j,i+2]<=asset.w[i]-up){
+        BalancePort[j,i] <- MV*asset.w[i]/myPortfolio[j,i]
+      }
+    }
+    MV <- 0
+  }
+}
+
+Port.ts <- BalancePort[,asset.num*2+1]
+dynamicVaR <- PortVaR(Port.ts,VaR.period,confid)
+VaR.2 <- buyholdVaR[,1:4] * BalancePort[VaR.period:nrow(Port.ts),asset.num*2+1][1]
+
+#******************************************************
+# Fixed Days to adjust (20 Days)
+k <- 1
+for(j in 1:row.count){
+  if(j==1){
+    for(i in 1:asset.num){
+      BalancePort[j,i] <- Capital.T0 * asset.w[i] / myPortfolio[1,i][1]
+      BalancePort[j,i+2] <- asset.w[i]
+      if(i==asset.num){
+        BalancePort[j,i*2 +3] = Capital.T0}
+    }
+  }else{
+    for(i in 1:asset.num){
+      BalancePort[j,i] <- BalancePort[j-1,i]
+      MV <- MV + BalancePort[j,i]*myPortfolio[j,i]
+    }
+    BalancePort[j,asset.num*2+3] <- MV
+  # Setting moving period days to check whether to adjust weight
+    if(k == NextDays){
+     for(i in 1:asset.num){
+      BalancePort[j,i+2] <- BalancePort[j,i]*myPortfolio[j,i] / MV
+      if(BalancePort[j,i+2]>=asset.w[i]+up |BalancePort[j,i+2]<=asset.w[i]-up){
+        BalancePort[j,i] <- MV*asset.w[i]/myPortfolio[j,i]
+      }
+     }
+     }  
+    MV <- 0
+  }
+  k <- k+1
+}
+
+Port.ts <- BalancePort[,asset.num*2+3]
+FixedAdjVaR <- PortVaR(Port.ts,VaR.period,confid)
+VaR.3 <- buyholdVaR[,1:4] * BalancePort[VaR.period:nrow(Port.ts),asset.num*2+3][1]
+
+#******************************************************
+# Plot time Series as output
+par(mfcol = c(1, 1))
+plot(BalancePort[,5:7],plot.type="single",
+     col=timPalette(n=3),lty=1:3,lwd=2,xlab="Historial Period",ylab="Market Value",
+     at="chic")
+title(main = "Strategy Portfolio Performance")
+hgrid()
+
+par(mfcol = c(3, 1))
+plot(VaR.1,plot.type="single",col=c("orange","red","green","blue"),
+     lwd=2,xlab="Historial Period",ylab="Loss Amount",at="chic")
+title(main = "Buy and Hold Strategy VaR BackTesting")
+hgrid()
+plot(VaR.2,plot.type="single",col=c("orange","red","green","blue"),
+     lwd=2,xlab="Historial Period",ylab="Loss Amount",at="chic")
+title(main = "Dynamic Rebalancing Strategy VaR BackTesting")
+hgrid()
+plot(VaR.3,plot.type="single",col=c("orange","red","green","blue"),
+     lwd=2,xlab="Historial Period",ylab="Loss Amount",at="chic")
+title(main = "Regularly(20D) rebalancing Strategy VaR BackTesting")
+hgrid()
+
+#******************************************************
+
+# break.time <- Asset.VaR[Asset.VaR[,4] < Asset.VaR[,2],]
+
+#*******************************************************************************
+# Dynamic Rebalancing
+
+write.csv(BalancePort,"myPort.csv")
+write.csv(VaR.1,"VaR1.csv")
+write.csv(VaR.2,"VaR2.csv")
+write.csv(VaR.3,"VaR3.csv")
